@@ -1,0 +1,43 @@
+[gd_scene format=3 uid="uid://d1lf44ouv32k1"]
+
+[ext_resource type="Script" uid="uid://bwdgx1vqgny6y" path="res://Scenes/gameforge.gd" id="1_rk6mp"]
+
+[node name="Gameforge" type="Node2D" unique_id=935642815]
+position = Vector2(-3, 0)
+script = ExtResource("1_rk6mp")
+
+[node name="Background" type="ColorRect" parent="." unique_id=425753420]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_right = 800.0
+offset_bottom = 600.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0469442, 0.23687127, 0.31517598, 1)
+
+[node name="Grid" type="Node2D" parent="." unique_id=1042036156]
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=1151726669]
+
+[node name="CodeEditor" type="TextEdit" parent="UI" unique_id=1096528195]
+offset_left = 520.0
+offset_top = 50.0
+offset_right = 780.0
+offset_bottom = 400.0
+placeholder_text = "move
+move
+turn_right
+move
+move"
+
+[node name="RunButton" type="Button" parent="UI" unique_id=1096411406]
+offset_left = 520.0
+offset_top = 420.0
+offset_right = 780.0
+offset_bottom = 470.0
+text = "RUN"
+
+[connection signal="pressed" from="UI/RunButton" to="." method="_on_run_button_pressed"]
