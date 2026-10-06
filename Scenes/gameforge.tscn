@@ -27,6 +27,11 @@ offset_left = 520.0
 offset_top = 50.0
 offset_right = 780.0
 offset_bottom = 400.0
+text = "move()
+move()
+turn_right()
+move()
+move()"
 placeholder_text = "move
 move
 turn_right

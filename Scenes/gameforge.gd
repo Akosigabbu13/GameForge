@@ -122,13 +122,13 @@ func show_victory():
 	$Grid.add_child(victory_label)
 func execute_command(command: String) -> bool:
 	match command:
-		"move":
+		"move()":
 			move()
 			return true
-		"turn_left":
+		"turn_left()":
 			turn_left()
 			return true
-		"turn_right":
+		"turn_right()":
 			turn_right()
 			return true
 		_:
