@@ -120,6 +120,47 @@ func wall_ahead() -> bool:
 
 	return false
 
+
+func wall_left() -> bool:
+	var left_direction := Vector2i(
+		robot_direction.y,
+		-robot_direction.x
+	)
+
+	var next_position := robot_position + left_direction
+
+	if next_position.x < 0 or next_position.x >= GRID_WIDTH:
+		return true
+
+	if next_position.y < 0 or next_position.y >= GRID_HEIGHT:
+		return true
+
+	if next_position in WALLS:
+		return true
+
+	return false
+
+
+func wall_right() -> bool:
+	var right_direction := Vector2i(
+		-robot_direction.y,
+		robot_direction.x
+	)
+
+	var next_position := robot_position + right_direction
+
+	if next_position.x < 0 or next_position.x >= GRID_WIDTH:
+		return true
+
+	if next_position.y < 0 or next_position.y >= GRID_HEIGHT:
+		return true
+
+	if next_position in WALLS:
+		return true
+
+	return false
+
+
 func _input(event):
 	if event.is_action_pressed("ui_right"):
 		execute_command("move")
@@ -229,7 +270,11 @@ func run_program():
 					continue
 
 				# Check for an if statement inside the for loop
-				if body_line.strip_edges() == "if wall_ahead():" and (
+				if (
+					body_line.strip_edges() == "if wall_ahead():" or
+					body_line.strip_edges() == "if wall_left():" or
+					body_line.strip_edges() == "if wall_right():"
+				) and (
 					body_line.begins_with("    ") and not body_line.begins_with("        ")
 				):
 					var if_line_number := i + 1
@@ -291,7 +336,7 @@ func run_program():
 
 					body.append({
 						"type": "if",
-						"condition": "wall_ahead",
+						"condition": body_line.strip_edges().trim_prefix("if ").trim_suffix(":"),
 						"if_body": if_body,
 						"else_body": else_body,
 						"line": if_line_number
@@ -326,7 +371,11 @@ func run_program():
 			continue
 
 		# Check for a top-level if statement
-		if stripped == "if wall_ahead():":
+		if (
+			stripped == "if wall_ahead():" or
+			stripped == "if wall_left():" or
+			stripped == "if wall_right():"
+		):
 			var if_line_number := line_number
 			i += 1
 
@@ -386,7 +435,7 @@ func run_program():
 
 			program.append({
 				"type": "if",
-				"condition": "wall_ahead",
+				"condition": stripped.trim_prefix("if ").trim_suffix(":"),
 				"if_body": if_body,
 				"else_body": else_body,
 				"line": if_line_number
@@ -418,12 +467,19 @@ func run_program():
 
 		if instruction_type == "if":
 			var selected_body = []
+			var condition_result := false
 
-			if instruction["condition"] == "wall_ahead":
-				if wall_ahead():
-					selected_body = instruction["if_body"]
-				else:
-					selected_body = instruction["else_body"]
+			if instruction["condition"] == "wall_ahead()":
+				condition_result = wall_ahead()
+			elif instruction["condition"] == "wall_left()":
+				condition_result = wall_left()
+			elif instruction["condition"] == "wall_right()":
+				condition_result = wall_right()
+
+			if condition_result:
+				selected_body = instruction["if_body"]
+			else:
+				selected_body = instruction["else_body"]
 
 			for body_instruction in selected_body:
 				var command: String = body_instruction["command"]
