@@ -106,6 +106,20 @@ func move():
 		show_victory()
 
 
+func wall_ahead() -> bool:
+	var next_position := robot_position + robot_direction
+
+	if next_position.x < 0 or next_position.x >= GRID_WIDTH:
+		return true
+
+	if next_position.y < 0 or next_position.y >= GRID_HEIGHT:
+		return true
+
+	if next_position in WALLS:
+		return true
+
+	return false
+
 func _input(event):
 	if event.is_action_pressed("ui_right"):
 		execute_command("move")
@@ -117,10 +131,12 @@ func _input(event):
 
 func turn_right():
 	robot_direction = Vector2i(-robot_direction.y, robot_direction.x)
+	update_robot_position()
 
 
 func turn_left():
 	robot_direction = Vector2i(robot_direction.y, -robot_direction.x)
+	update_robot_position()
 
 
 func create_goal():
@@ -160,77 +176,289 @@ func execute_command(command: String) -> bool:
 func run_program():
 	if program_running:
 		return
+
 	reset_level()
 	program_running = true
+
 	await get_tree().create_timer(0.3).timeout
+
 	var lines := code_editor.text.split("\n")
 	var program := []
 	var line_number := 0
 	var i := 0
+
 	while i < lines.size():
 		line_number += 1
+
 		var line: String = lines[i]
 		var stripped := line.strip_edges()
+
 		if stripped == "":
 			i += 1
 			continue
+
 		# Check for a for loop
 		if stripped.begins_with("for "):
 			var loop: Variant = parse_for_loop(stripped)
+
 			if loop == null:
 				var message := "Line %d: Invalid for loop" % line_number
 				print(message)
 				show_error(message)
 				program_running = false
 				return
+
 			var repeat_count: int = loop["count"]
+
 			if repeat_count > 20:
 				var message := "Line %d: Loop cannot repeat more than 20 times" % line_number
 				print(message)
 				show_error(message)
 				program_running = false
 				return
+
 			i += 1
+
 			var body := []
+
 			while i < lines.size():
 				var body_line: String = lines[i]
+
 				if body_line.strip_edges() == "":
 					i += 1
 					continue
-				if body_line.begins_with("    ") or body_line.begins_with("\t"):
-					body.append(body_line.strip_edges())
+
+				# Check for an if statement inside the for loop
+				if body_line.strip_edges() == "if wall_ahead():" and (
+					body_line.begins_with("    ") and not body_line.begins_with("        ")
+				):
+					var if_line_number := i + 1
 					i += 1
-				else:
-					break
+
+					var if_body := []
+
+					while i < lines.size():
+						var if_body_line: String = lines[i]
+
+						if if_body_line.strip_edges() == "":
+							i += 1
+							continue
+
+						if if_body_line.begins_with("        "):
+							if_body.append({
+								"command": if_body_line.strip_edges(),
+								"line": if_line_number
+							})
+							i += 1
+						else:
+							break
+
+					if if_body.is_empty():
+						var message := "Line %d: If statement has no indented body" % if_line_number
+						print(message)
+						show_error(message)
+						program_running = false
+						return
+
+					var else_body := []
+
+					# Check for else
+					if i < lines.size() and lines[i].strip_edges() == "else:":
+						i += 1
+
+						while i < lines.size():
+							var else_line: String = lines[i]
+
+							if else_line.strip_edges() == "":
+								i += 1
+								continue
+
+							if else_line.begins_with("        "):
+								else_body.append({
+									"command": else_line.strip_edges(),
+									"line": if_line_number
+								})
+								i += 1
+							else:
+								break
+
+						if else_body.is_empty():
+							var message := "Line %d: Else statement has no indented body" % if_line_number
+							print(message)
+							show_error(message)
+							program_running = false
+							return
+
+					body.append({
+						"type": "if",
+						"condition": "wall_ahead",
+						"if_body": if_body,
+						"else_body": else_body,
+						"line": if_line_number
+					})
+
+					continue
+
+				# Normal command directly inside the for loop
+				if body_line.begins_with("    ") and not body_line.begins_with("        "):
+					body.append({
+						"type": "command",
+						"command": body_line.strip_edges(),
+						"line": line_number
+					})
+					i += 1
+					continue
+
+				break
+
 			if body.is_empty():
 				var message := "Line %d: For loop has no indented body" % line_number
 				print(message)
 				show_error(message)
 				program_running = false
 				return
+
+			# Expand the loop
 			for repeat in range(repeat_count):
-				for command in body:
-					program.append({
-						"command": command,
-						"line": line_number
-					})
+				for instruction in body:
+					program.append(instruction)
+
 			continue
-		program.append({
-			"command": stripped,
-			"line": line_number
-		})
-		i += 1
-	for instruction in program:
-		var command: String = instruction["command"]
-		var original_line: int = instruction["line"]
-		var valid := execute_command(command)
-		if not valid:
-			var message := "Line %d: Unknown command '%s'" % [original_line, command]
+
+		# Check for a top-level if statement
+		if stripped == "if wall_ahead():":
+			var if_line_number := line_number
+			i += 1
+
+			var if_body := []
+
+			while i < lines.size():
+				var body_line: String = lines[i]
+
+				if body_line.strip_edges() == "":
+					i += 1
+					continue
+
+				if body_line.begins_with("    "):
+					if_body.append({
+						"command": body_line.strip_edges(),
+						"line": if_line_number
+					})
+					i += 1
+				else:
+					break
+
+			if if_body.is_empty():
+				var message := "Line %d: If statement has no indented body" % if_line_number
+				print(message)
+				show_error(message)
+				program_running = false
+				return
+
+			var else_body := []
+
+			# Check for top-level else
+			if i < lines.size() and lines[i].strip_edges() == "else:":
+				i += 1
+
+				while i < lines.size():
+					var else_line: String = lines[i]
+
+					if else_line.strip_edges() == "":
+						i += 1
+						continue
+
+					if else_line.begins_with("    "):
+						else_body.append({
+							"command": else_line.strip_edges(),
+							"line": if_line_number
+						})
+						i += 1
+					else:
+						break
+
+				if else_body.is_empty():
+					var message := "Line %d: Else statement has no indented body" % if_line_number
+					print(message)
+					show_error(message)
+					program_running = false
+					return
+
+			program.append({
+				"type": "if",
+				"condition": "wall_ahead",
+				"if_body": if_body,
+				"else_body": else_body,
+				"line": if_line_number
+			})
+
+			continue
+
+		# Reject standalone else
+		if stripped == "else:":
+			var message := "Line %d: Unexpected else" % line_number
 			print(message)
 			show_error(message)
 			program_running = false
 			return
+
+		# Normal command
+		program.append({
+			"type": "command",
+			"command": stripped,
+			"line": line_number
+		})
+
+		i += 1
+
+	# Execute program
+	for instruction in program:
+		var instruction_type: String = instruction["type"]
+		var original_line: int = instruction["line"]
+
+		if instruction_type == "if":
+			var selected_body = []
+
+			if instruction["condition"] == "wall_ahead":
+				if wall_ahead():
+					selected_body = instruction["if_body"]
+				else:
+					selected_body = instruction["else_body"]
+
+			for body_instruction in selected_body:
+				var command: String = body_instruction["command"]
+
+				var valid := execute_command(command)
+
+				if not valid:
+					var message := "Line %d: Unknown command '%s'" % [
+						body_instruction["line"],
+						command
+					]
+					print(message)
+					show_error(message)
+					program_running = false
+					return
+
+				await get_tree().create_timer(0.3).timeout
+
+			continue
+
+		var command: String = instruction["command"]
+		var valid := execute_command(command)
+
+		if not valid:
+			var message := "Line %d: Unknown command '%s'" % [
+				original_line,
+				command
+			]
+			print(message)
+			show_error(message)
+			program_running = false
+			return
+
 		await get_tree().create_timer(0.3).timeout
+
 	program_running = false
 
 
